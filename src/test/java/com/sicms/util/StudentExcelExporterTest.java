@@ -81,7 +81,7 @@ public class StudentExcelExporterTest {
             Row titleRow = sheet.getRow(0);
             Assertions.assertNotNull(titleRow);
             Cell titleCell = titleRow.getCell(0);
-            Assertions.assertEquals("BHASHYAM IIT JEE ACADEMY — OFFICIAL STUDENTS DIRECTORY", titleCell.getStringCellValue());
+            Assertions.assertEquals("STUDENT MANAGEMENT SYSTEM — OFFICIAL STUDENTS DIRECTORY", titleCell.getStringCellValue());
 
             // Check Row 1: Header Row - Exactly 22 columns
             Row headerRow = sheet.getRow(1);

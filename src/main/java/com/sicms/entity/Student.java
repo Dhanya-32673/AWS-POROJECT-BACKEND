@@ -400,10 +400,18 @@ public class Student {
         return users;
     }
 
+
+
+
+
+
     public void setUsers(java.util.List<User> users) {
         this.users = users;
     }
 
+
+
+    
     public User getUser() {
         return (users != null && !users.isEmpty()) ? users.get(0) : null;
     }

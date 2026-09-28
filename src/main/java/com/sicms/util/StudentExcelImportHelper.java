@@ -172,7 +172,7 @@ public class StudentExcelImportHelper {
             Row titleRow = sheet.createRow(0);
             titleRow.setHeightInPoints(30);
             Cell titleCell = titleRow.createCell(0);
-            titleCell.setCellValue("BHASHYAM IIT JEE ACADEMY — STUDENT REGISTRATION IMPORT TEMPLATE");
+            titleCell.setCellValue("STUDENT MANAGEMENT SYSTEM — STUDENT REGISTRATION IMPORT TEMPLATE");
             titleCell.setCellStyle(titleStyle);
             sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, totalCols - 1));
 
@@ -376,7 +376,7 @@ public class StudentExcelImportHelper {
             Row titleRow = sheet.createRow(0);
             titleRow.setHeightInPoints(28);
             Cell titleCell = titleRow.createCell(0);
-            titleCell.setCellValue("BHASHYAM IIT JEE ACADEMY — STUDENT IMPORT ERROR REPORT");
+            titleCell.setCellValue("STUDENT MANAGEMENT SYSTEM — STUDENT IMPORT ERROR REPORT");
             titleCell.setCellStyle(titleStyle);
             sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, errHeaders.length - 1));
 

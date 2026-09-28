@@ -183,7 +183,7 @@ public class DataInitializer implements CommandLineRunner {
         java.util.Optional<User> existingUser = userRepository.findByEmailIgnoreCase(cleanEmail);
         if (existingUser.isEmpty()) {
             User admin = new User();
-            admin.setFullName("Bhashyam Administrator");
+            admin.setFullName("System Administrator");
             admin.setEmail(cleanEmail);
             admin.setPasswordHash(passwordEncoder.encode("Admin@123"));
             admin.setRole(adminRole);

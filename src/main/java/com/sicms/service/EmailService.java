@@ -125,13 +125,13 @@ public class EmailService {
 
     @Async
     public void sendFacultyPasswordResetConfirmation(String facultyEmail) {
-        String subject = "Your Password Has Been Reset - SICMS Administration";
+        String subject = "Your Password Has Been Reset - Student Management System";
         String htmlContent = String.format("""
             <div style="font-family: Arial, sans-serif; padding: 24px; color: #1e293b; max-width: 560px; margin: auto; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff;">
                 <h2 style="color: #16a34a; margin: 0 0 12px 0; font-size: 20px; font-weight: 800;">Password Updated Successfully</h2>
                 <p style="font-size: 14px; margin-bottom: 16px;">Hello,</p>
-                <p style="font-size: 14px; margin-bottom: 20px;">Your SICMS faculty account password was successfully reset by System Administration.</p>
-                <p style="font-size: 14px; margin-bottom: 20px;">You can now sign in with your new password on the SICMS login portal.</p>
+                <p style="font-size: 14px; margin-bottom: 20px;">Your Student Management System faculty account password was successfully reset by System Administration.</p>
+                <p style="font-size: 14px; margin-bottom: 20px;">You can now sign in with your new password on the Student Management System login portal.</p>
                 <p style="color: #64748b; font-size: 12px; margin-bottom: 0;">If you did not request this change, please contact system administration immediately.</p>
             </div>
             """);
@@ -150,8 +150,8 @@ public class EmailService {
         boolean isReset = "PASSWORD_RESET".equalsIgnoreCase(purpose) || "FORGOT_PASSWORD".equalsIgnoreCase(purpose);
         String timeStr = LocalTime.now().format(DateTimeFormatter.ofPattern("hh:mm:ss a"));
         String subject = isReset 
-                ? "[" + timeStr + "] Your Password Reset OTP - SICMS"
-                : "[" + timeStr + "] Your Login OTP - SICMS";
+                ? "[" + timeStr + "] Your Password Reset OTP - Student Management System"
+                : "[" + timeStr + "] Your Login OTP - Student Management System";
 
         String title = isReset ? "Password Reset Verification" : "Login Verification";
         String otpLabel = isReset ? "6-digit Password Reset OTP" : "OTP Code";
@@ -159,8 +159,8 @@ public class EmailService {
         String htmlContent = String.format("""
             <div style="font-family: Arial, sans-serif; padding: 24px; color: #1e293b; max-width: 560px; margin: auto; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff;">
                 <div style="text-align: center; margin-bottom: 20px;">
-                    <h2 style="color: #2563eb; margin: 0; font-size: 20px; font-weight: 800;">Bhashyam IIT JEE Academy</h2>
-                    <p style="color: #64748b; font-size: 13px; margin-top: 4px;">SICMS Secure Authentication — %s</p>
+                    <h2 style="color: #2563eb; margin: 0; font-size: 20px; font-weight: 800;">Student Management System</h2>
+                    <p style="color: #64748b; font-size: 13px; margin-top: 4px;">Secure Authentication — %s</p>
                 </div>
                 <hr style="border: none; border-top: 1px solid #f1f5f9; margin: 16px 0;" />
                 <p style="font-size: 14px; margin-bottom: 12px;">Hello,</p>
@@ -169,7 +169,7 @@ public class EmailService {
                     <span style="font-size: 32px; font-weight: 800; letter-spacing: 10px; color: #1e3a8a;">%s</span>
                 </div>
                 <p style="color: #64748b; font-size: 13px; margin-bottom: 20px;">This code is valid for <strong>5 minutes</strong>.<br/>Do not share this OTP with anyone for security reasons.</p>
-                <p style="font-size: 14px; margin-bottom: 0;">Regards,<br/><strong>Bhashyam IIT JEE Academy Administration</strong></p>
+                <p style="font-size: 14px; margin-bottom: 0;">Regards,<br/><strong>Student Management System Administration</strong></p>
                 <hr style="border: none; border-top: 1px solid #f1f5f9; margin: 24px 0 16px 0;" />
                 <p style="font-size: 11px; color: #94a3b8; text-align: center; margin: 0;">If you did not request this OTP, please ignore this email or contact support.</p>
             </div>

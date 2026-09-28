@@ -138,7 +138,7 @@ public class StudentExcelExporter {
             Row titleRow = sheet.createRow(0);
             titleRow.setHeightInPoints(30);
             Cell titleCell = titleRow.createCell(0);
-            titleCell.setCellValue("BHASHYAM IIT JEE ACADEMY — OFFICIAL STUDENTS DIRECTORY");
+            titleCell.setCellValue("STUDENT MANAGEMENT SYSTEM — OFFICIAL STUDENTS DIRECTORY");
             titleCell.setCellStyle(titleStyle);
             sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, HEADERS.length - 1));
 
