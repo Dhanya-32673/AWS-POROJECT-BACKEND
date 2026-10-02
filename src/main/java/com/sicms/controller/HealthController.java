@@ -19,7 +19,7 @@ public class HealthController {
     @Autowired(required = false)
     private JavaMailSender mailSender;
 
-    @RequestMapping(value = {"/", "/health", "/api/health"}, method = {RequestMethod.GET, RequestMethod.HEAD})
+    @RequestMapping(value = {"/", "/health", "/api/health", "/actuator/health", "/favicon.ico"}, method = {RequestMethod.GET, RequestMethod.HEAD})
     public ResponseEntity<Map<String, Object>> healthCheck() {
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("status", "UP");
