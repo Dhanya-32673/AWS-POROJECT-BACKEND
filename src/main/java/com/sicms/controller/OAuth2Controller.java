@@ -23,15 +23,26 @@ public class OAuth2Controller {
     @Value("${spring.security.oauth2.client.registration.google.client-id:1078205301117-2u5nd4rn8hraa9jjo8hij2r2i0htcsac.apps.googleusercontent.com}")
     private String googleClientId;
 
-    @Value("${app.frontend.url:https://bhashyamgnt.vercel.app}")
+    @Value("${app.frontend.url:https://studentmanagemetsystem.vercel.app}")
     private String frontendUrl;
 
-    @Value("${app.admin.email:bhashyamgnt.edu@gmail.com}")
+    @Value("${app.admin.email:dhanyaande@gmail.com}")
     private String adminEmail;
 
     public OAuth2Controller(UserRepository userRepository, JwtService jwtService) {
         this.userRepository = userRepository;
         this.jwtService = jwtService;
+    }
+
+    private String getBaseFrontendUrl() {
+        if (frontendUrl == null || frontendUrl.isBlank()) {
+            return "https://studentmanagemetsystem.vercel.app";
+        }
+        String url = frontendUrl.trim();
+        if (url.endsWith("/login")) {
+            url = url.substring(0, url.length() - 6);
+        }
+        return url.replaceAll("/+$", "");
     }
 
     @GetMapping("/authorization/google")
@@ -57,6 +68,8 @@ public class OAuth2Controller {
             return;
         }
 
+        String baseFrontendUrl = getBaseFrontendUrl();
+
         // Fallback for Development/Testing: authenticate admin email
         Optional<User> userOpt = userRepository.findByEmailIgnoreCase(adminEmail);
         if (userOpt.isPresent()) {
@@ -64,7 +77,7 @@ public class OAuth2Controller {
             String token = jwtService.generateAccessToken(user);
             String role = user.getRole() != null ? user.getRole().getRoleName() : "ROLE_ADMIN";
 
-            String redirectUrl = UriComponentsBuilder.fromUriString(frontendUrl + "/oauth2/redirect")
+            String redirectUrl = UriComponentsBuilder.fromUriString(baseFrontendUrl + "/oauth2/redirect")
                     .queryParam("token", token)
                     .queryParam("role", role)
                     .queryParam("email", user.getEmail())
@@ -75,6 +88,6 @@ public class OAuth2Controller {
         }
 
         // Default error redirect
-        response.sendRedirect(frontendUrl + "/login?error=google_unauthorized");
+        response.sendRedirect(baseFrontendUrl + "/login?error=google_unauthorized");
     }
 }

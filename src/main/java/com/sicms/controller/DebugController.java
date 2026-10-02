@@ -53,7 +53,7 @@ public class DebugController {
     }
 
     @GetMapping("/email")
-    public ResponseEntity<Map<String, Object>> testEmailDispatch(@RequestParam(defaultValue = "bhashyamgnt.edu@gmail.com") String to) {
+    public ResponseEntity<Map<String, Object>> testEmailDispatch(@RequestParam(defaultValue = "dhanyaande@gmail.com") String to) {
         Map<String, Object> result = new LinkedHashMap<>();
         try {
             emailService.sendTestEmail(to);

@@ -17,7 +17,7 @@ public class DataInitializer implements CommandLineRunner {
     private final org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
     private final javax.sql.DataSource dataSource;
 
-    @org.springframework.beans.factory.annotation.Value("${app.admin.email:bhashyamgnt.edu@gmail.com}")
+    @org.springframework.beans.factory.annotation.Value("${app.admin.email:dhanyaande@gmail.com}")
     private String adminEmail;
 
     private final com.sicms.service.CampusService campusService;

@@ -20,8 +20,19 @@ public class OAuth2AuthenticationFailureHandler extends SimpleUrlAuthenticationF
 
     private static final Logger log = LoggerFactory.getLogger(OAuth2AuthenticationFailureHandler.class);
 
-    @Value("${app.frontend.url:http://localhost:5173}")
+    @Value("${app.frontend.url:https://studentmanagemetsystem.vercel.app}")
     private String frontendUrl;
+
+    private String getBaseFrontendUrl() {
+        if (frontendUrl == null || frontendUrl.isBlank()) {
+            return "https://studentmanagemetsystem.vercel.app";
+        }
+        String url = frontendUrl.trim();
+        if (url.endsWith("/login")) {
+            url = url.substring(0, url.length() - 6);
+        }
+        return url.replaceAll("/+$", "");
+    }
 
     @Override
     public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response, AuthenticationException exception)
@@ -61,7 +72,7 @@ public class OAuth2AuthenticationFailureHandler extends SimpleUrlAuthenticationF
         }
         log.error("================================================================================");
 
-        String targetUrl = UriComponentsBuilder.fromUriString(frontendUrl + "/login")
+        String targetUrl = UriComponentsBuilder.fromUriString(getBaseFrontendUrl() + "/login")
                 .queryParam("error", "google_failed")
                 .build().toUriString();
 

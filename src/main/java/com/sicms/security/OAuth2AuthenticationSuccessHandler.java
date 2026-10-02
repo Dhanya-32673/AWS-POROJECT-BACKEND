@@ -30,7 +30,7 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
     private final JwtService jwtService;
     private final OtpService otpService;
 
-    @Value("${app.frontend.url:http://localhost:5173}")
+    @Value("${app.frontend.url:https://studentmanagemetsystem.vercel.app}")
     private String frontendUrl;
 
     public OAuth2AuthenticationSuccessHandler(UserRepository userRepository,
@@ -39,6 +39,17 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
         this.userRepository = userRepository;
         this.jwtService = jwtService;
         this.otpService = otpService;
+    }
+
+    private String getBaseFrontendUrl() {
+        if (frontendUrl == null || frontendUrl.isBlank()) {
+            return "https://studentmanagemetsystem.vercel.app";
+        }
+        String url = frontendUrl.trim();
+        if (url.endsWith("/login")) {
+            url = url.substring(0, url.length() - 6);
+        }
+        return url.replaceAll("/+$", "");
     }
 
     @Override
@@ -50,9 +61,11 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
 
         log.info("Google login attempt: {}", email);
 
+        String baseFrontendUrl = getBaseFrontendUrl();
+
         if (email == null || email.isBlank()) {
             log.warn("Unauthorized Google login attempt: missing email attribute");
-            getRedirectStrategy().sendRedirect(request, response, frontendUrl + "/login?error=google_email_missing");
+            getRedirectStrategy().sendRedirect(request, response, baseFrontendUrl + "/login?error=google_email_missing");
             return;
         }
 
@@ -61,7 +74,7 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
 
         if (existingUser.isEmpty()) {
             log.warn("Unauthorized Google login attempt - user not found in database: {}", normalizedEmail);
-            String redirectUrl = UriComponentsBuilder.fromUriString(frontendUrl + "/login")
+            String redirectUrl = UriComponentsBuilder.fromUriString(baseFrontendUrl + "/login")
                     .queryParam("error", "unauthorized")
                     .build().toUriString();
             getRedirectStrategy().sendRedirect(request, response, redirectUrl);
@@ -72,7 +85,7 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
 
         if (!Boolean.TRUE.equals(user.getAccountEnabled())) {
             log.warn("Google login rejected - Account disabled: {}", normalizedEmail);
-            getRedirectStrategy().sendRedirect(request, response, frontendUrl + "/login?error=account_disabled");
+            getRedirectStrategy().sendRedirect(request, response, baseFrontendUrl + "/login?error=account_disabled");
             return;
         }
 
@@ -87,7 +100,7 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
                 log.error("Failed to generate OTP for admin: " + e.getMessage(), e);
             }
 
-            String targetUrl = UriComponentsBuilder.fromUriString(frontendUrl + "/admin-otp")
+            String targetUrl = UriComponentsBuilder.fromUriString(baseFrontendUrl + "/admin-otp")
                     .queryParam("email", URLEncoder.encode(user.getEmail(), StandardCharsets.UTF_8))
                     .queryParam("name", URLEncoder.encode(name != null ? name : user.getFullName(), StandardCharsets.UTF_8))
                     .build(true).toUriString();
@@ -101,7 +114,7 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
             String token = jwtService.generateAccessToken(user);
             log.info("Google login success for {}: Direct JWT issued", normalizedEmail);
 
-            String targetUrl = UriComponentsBuilder.fromUriString(frontendUrl + "/oauth-success")
+            String targetUrl = UriComponentsBuilder.fromUriString(baseFrontendUrl + "/oauth-success")
                     .queryParam("token", token)
                     .queryParam("role", roleName)
                     .queryParam("email", URLEncoder.encode(user.getEmail(), StandardCharsets.UTF_8))
@@ -114,6 +127,6 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
 
         // Other unauthorized roles
         log.warn("Google login rejected - Role '{}' not allowed: {}", roleName, normalizedEmail);
-        getRedirectStrategy().sendRedirect(request, response, frontendUrl + "/login?error=role_not_allowed");
+        getRedirectStrategy().sendRedirect(request, response, baseFrontendUrl + "/login?error=role_not_allowed");
     }
 }

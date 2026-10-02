@@ -32,11 +32,11 @@ public class EmailService {
     public EmailService(
             @Value("${resend.api.key:}") String apiKey,
             @Value("${app.mail.from:onboarding@resend.dev}") String fromAddress,
-            @Value("${app.admin.email:bhashyamgnt.edu@gmail.com}") String adminEmail
+            @Value("${app.admin.email:dhanyaande@gmail.com}") String adminEmail
     ) {
         this.apiKey = apiKey != null ? apiKey.trim() : "";
         this.fromAddress = (fromAddress != null && !fromAddress.isBlank()) ? fromAddress.trim() : "onboarding@resend.dev";
-        this.adminEmail = (adminEmail != null && !adminEmail.isBlank()) ? adminEmail.trim() : "admin@college.edu";
+        this.adminEmail = (adminEmail != null && !adminEmail.isBlank()) ? adminEmail.trim() : "dhanyaande@gmail.com";
         log.info(">>> EMAIL SERVICE INITIALIZED with Sender: " + this.fromAddress + " | Admin Target: " + this.adminEmail);
     }
 
@@ -209,9 +209,18 @@ public class EmailService {
                 return;
             }
 
+            String resendFrom = fromAddress;
+            if (resendFrom == null || resendFrom.isBlank()
+                    || resendFrom.toLowerCase().contains("@gmail.com")
+                    || resendFrom.toLowerCase().contains("@yahoo.com")
+                    || resendFrom.toLowerCase().contains("@outlook.com")
+                    || resendFrom.toLowerCase().contains("@hotmail.com")) {
+                resendFrom = "SICMS <onboarding@resend.dev>";
+            }
+
             Resend resend = new Resend(apiKey);
             CreateEmailOptions params = CreateEmailOptions.builder()
-                    .from(fromAddress)
+                    .from(resendFrom)
                     .to(email)
                     .subject(subject)
                     .html(htmlContent)
