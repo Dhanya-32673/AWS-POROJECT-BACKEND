@@ -159,6 +159,7 @@ public class DocumentStorageService {
 
         // 2. Secondary/Fallback: Upload to Supabase Storage REST API
         if (!s3Uploaded) {
+            log.warning(">>> [STORAGE WARNING] AWS S3 upload was not successful for [" + storagePath + "]. Falling back to Supabase Storage.");
             boolean supabaseUploaded = uploadToSupabase(storagePath, fileBytes, file.getContentType());
             if (!supabaseUploaded) {
                 System.out.println(">>> STORAGE NOTICE: Primary cloud uploads unavailable. Preserving local storage backup for: " + storagePath);
