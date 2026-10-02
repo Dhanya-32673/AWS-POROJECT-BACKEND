@@ -13,7 +13,7 @@ import java.util.List;
 @Configuration
 public class CorsConfig {
 
-    @Value("${cors.allowed.origins:http://localhost:5173,http://localhost:3000,http://localhost:8080,https://bhashyamgnt.vercel.app}")
+    @Value("${cors.allowed.origins:https://studentmanagementsystem.vercel.app,https://studentmanagemetsystem.vercel.app,https://bhashyamgnt.vercel.app,http://localhost:5173,http://localhost:3000,http://localhost:8080}")
     private String allowedOrigins;
 
     @Bean
@@ -32,6 +32,8 @@ public class CorsConfig {
                 "http://localhost:*",
                 "http://127.0.0.1:*",
                 "https://*.vercel.app",
+                "https://studentmanagementsystem.vercel.app",
+                "https://studentmanagemetsystem.vercel.app",
                 "https://bhashyamgnt.vercel.app"
         ));
         config.setAllowedHeaders(Arrays.asList("*"));
