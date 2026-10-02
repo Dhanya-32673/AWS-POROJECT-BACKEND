@@ -6,8 +6,11 @@ import java.util.Map;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import java.util.concurrent.TimeUnit;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -92,6 +95,30 @@ public class FacultyController {
         String publicUrl = photoService.uploadFacultyPhoto(faculty.getId(), file);
         facultyService.updateFacultyPhoto(faculty.getId(), publicUrl);
         return ResponseEntity.ok().build();
+    }
+
+    /**
+     * Get faculty photo bytes directly with fallback & caching
+     */
+    @GetMapping("/{id}/photo")
+    public ResponseEntity<byte[]> getFacultyPhoto(
+            @PathVariable String id,
+            @RequestParam(value = "t", required = false) String timestamp) {
+        com.sicms.entity.Faculty faculty = facultyService.findFacultyEntityByIdOrCode(id);
+        if (faculty == null || faculty.getPhotoUrl() == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        byte[] bytes = photoService.getPhotoBytes(faculty.getPhotoUrl());
+        if (bytes == null || bytes.length == 0) {
+            return ResponseEntity.notFound().build();
+        }
+
+        String contentType = photoService.getPhotoContentType(faculty.getPhotoUrl());
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.maxAge(1, TimeUnit.HOURS).cachePublic())
+                .contentType(MediaType.parseMediaType(contentType))
+                .body(bytes);
     }
 
     @PatchMapping("/{id}/status")

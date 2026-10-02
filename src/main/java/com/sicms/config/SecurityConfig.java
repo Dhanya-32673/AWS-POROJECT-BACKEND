@@ -94,6 +94,8 @@ public class SecurityConfig {
                                 "/admin/faculty/reset-password",
                                 "/api/auth/**",
                                 "/auth/**",
+                                "/api/students/*/photo",
+                                "/api/faculty/*/photo",
                                 "/oauth2/**",
                                 "/login/**",
                                 "/error",

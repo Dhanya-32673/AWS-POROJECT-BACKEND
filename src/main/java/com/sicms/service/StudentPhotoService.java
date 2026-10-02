@@ -176,6 +176,7 @@ public class StudentPhotoService {
 
         // 2. Secondary: Upload to Supabase Storage
         if (!s3Uploaded) {
+            log.warning(">>> [STORAGE WARNING] AWS S3 student photo upload was not successful for [" + generatedPath + "]. Falling back to Supabase.");
             boolean uploaded = uploadToSupabase(generatedPath, fileBytes, file.getContentType());
             if (!uploaded) {
                 log.warning("Supabase photo upload unavailable or failed, saving local backup.");
@@ -221,6 +222,7 @@ public class StudentPhotoService {
 
         // 2. Secondary: Upload to Supabase Storage
         if (!s3Uploaded) {
+            log.warning(">>> [STORAGE WARNING] AWS S3 faculty photo upload was not successful for [" + generatedPath + "]. Falling back to Supabase.");
             boolean uploaded = uploadToSupabase(generatedPath, fileBytes, file.getContentType());
             if (!uploaded) {
                 log.warning("Supabase faculty photo upload unavailable, saving local backup.");
@@ -369,6 +371,21 @@ public class StudentPhotoService {
 
     public String extractStoragePathFromUrl(String url) {
         if (url == null || url.isBlank()) return url;
+
+        // AWS S3 URL matching: https://bucket.s3.region.amazonaws.com/key or https://bucket.s3.amazonaws.com/key
+        if (url.contains(".amazonaws.com/")) {
+            return url.substring(url.indexOf(".amazonaws.com/") + ".amazonaws.com/".length());
+        }
+        if (url.startsWith("s3://")) {
+            String withoutScheme = url.substring("s3://".length());
+            if (withoutScheme.contains("/")) {
+                return withoutScheme.substring(withoutScheme.indexOf("/") + 1);
+            }
+        }
+        if (s3BucketPhotos != null && !s3BucketPhotos.isBlank() && url.startsWith(s3BucketPhotos + "/")) {
+            return url.substring(s3BucketPhotos.length() + 1);
+        }
+
         String bucket = (storageBucket != null && !storageBucket.isBlank()) ? storageBucket : "student-profile-photos";
         String publicMarker = "/object/public/" + bucket + "/";
         if (url.contains(publicMarker)) {
@@ -399,7 +416,13 @@ public class StudentPhotoService {
 
         String cleanPath = extractStoragePathFromUrl(urlOrPath);
 
-        // 1. Delete from Supabase Storage
+        // 1. Delete from AWS S3
+        if (s3StorageService != null) {
+            s3StorageService.deleteFile(s3BucketPhotos, cleanPath);
+            log.info(">>> [AWS S3] Photo deleted from bucket [" + s3BucketPhotos + "]: " + cleanPath);
+        }
+
+        // 2. Delete from Supabase Storage
         if (supabaseUrl != null && !supabaseUrl.isBlank()) {
             List<String> candidateKeys = getCandidateAuthKeys();
             String deleteEndpoint = supabaseUrl + "/storage/v1/object/" + storageBucket + "/" + cleanPath;
@@ -421,7 +444,7 @@ public class StudentPhotoService {
             }
         }
 
-        // 2. Delete local disk file
+        // 3. Delete local disk file
         try {
             Path targetFile = Paths.get(UPLOAD_ROOT, cleanPath);
             Files.deleteIfExists(targetFile);
