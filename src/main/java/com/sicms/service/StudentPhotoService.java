@@ -48,6 +48,12 @@ public class StudentPhotoService {
     @Value("${SUPABASE_STORAGE_BUCKET_PHOTOS:${supabase.storage.bucket.photos:student-profile-photos}}")
     private String storageBucket = "student-profile-photos";
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private S3StorageService s3StorageService;
+
+    @Value("${AWS_S3_BUCKET_PHOTOS:${aws.s3.bucket.photos:${AWS_S3_BUCKET:${aws.s3.bucket.name:sicms-storage}}}}")
+    private String s3BucketPhotos;
+
     private final RestTemplate restTemplate;
 
     public StudentPhotoService() {
@@ -159,14 +165,24 @@ public class StudentPhotoService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Failed to read photo file bytes: " + e.getMessage());
         }
 
-        // 1. Upload to Supabase Storage
-        boolean uploaded = uploadToSupabase(generatedPath, fileBytes, file.getContentType());
-        if (!uploaded) {
-            log.severe("Failed to upload student photo to Supabase storage bucket: " + generatedPath);
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to upload photo to storage. Please check storage connection.");
+        // 1. Primary: Upload to AWS S3
+        boolean s3Uploaded = false;
+        if (s3StorageService != null) {
+            s3Uploaded = s3StorageService.uploadFile(s3BucketPhotos, generatedPath, fileBytes, file.getContentType());
+            if (s3Uploaded) {
+                log.info(">>> [AWS S3] Student photo uploaded successfully to bucket [" + s3BucketPhotos + "]: " + generatedPath);
+            }
         }
 
-        // 2. Save local disk backup
+        // 2. Secondary: Upload to Supabase Storage
+        if (!s3Uploaded) {
+            boolean uploaded = uploadToSupabase(generatedPath, fileBytes, file.getContentType());
+            if (!uploaded) {
+                log.warning("Supabase photo upload unavailable or failed, saving local backup.");
+            }
+        }
+
+        // 3. Save local disk backup
         try {
             Path targetFile = Paths.get(UPLOAD_ROOT, generatedPath);
             Files.createDirectories(targetFile.getParent());
@@ -175,6 +191,9 @@ public class StudentPhotoService {
             log.warning("Warning: Local student photo backup copy failed: " + e.getMessage());
         }
 
+        if (s3Uploaded && s3StorageService != null) {
+            return s3StorageService.getS3Url(s3BucketPhotos, generatedPath);
+        }
         return getPublicUrlForPhoto(generatedPath);
     }
 
@@ -191,12 +210,24 @@ public class StudentPhotoService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Failed to read faculty photo file bytes: " + e.getMessage());
         }
 
-        boolean uploaded = uploadToSupabase(generatedPath, fileBytes, file.getContentType());
-        if (!uploaded) {
-            log.severe("Failed to upload faculty photo to Supabase storage bucket: " + generatedPath);
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to upload photo to storage. Please check storage connection.");
+        // 1. Primary: Upload to AWS S3
+        boolean s3Uploaded = false;
+        if (s3StorageService != null) {
+            s3Uploaded = s3StorageService.uploadFile(s3BucketPhotos, generatedPath, fileBytes, file.getContentType());
+            if (s3Uploaded) {
+                log.info(">>> [AWS S3] Faculty photo uploaded successfully to bucket [" + s3BucketPhotos + "]: " + generatedPath);
+            }
         }
 
+        // 2. Secondary: Upload to Supabase Storage
+        if (!s3Uploaded) {
+            boolean uploaded = uploadToSupabase(generatedPath, fileBytes, file.getContentType());
+            if (!uploaded) {
+                log.warning("Supabase faculty photo upload unavailable, saving local backup.");
+            }
+        }
+
+        // 3. Save local disk backup
         try {
             Path targetFile = Paths.get(UPLOAD_ROOT, generatedPath);
             Files.createDirectories(targetFile.getParent());
@@ -205,6 +236,9 @@ public class StudentPhotoService {
             log.warning("Warning: Local faculty photo backup copy failed: " + e.getMessage());
         }
 
+        if (s3Uploaded && s3StorageService != null) {
+            return s3StorageService.getS3Url(s3BucketPhotos, generatedPath);
+        }
         return getPublicUrlForPhoto(generatedPath);
     }
 
@@ -249,7 +283,13 @@ public class StudentPhotoService {
 
         String cleanPath = extractStoragePathFromUrl(urlOrPath);
 
-        // 1. Try reading from Supabase authenticated or public
+        // 1. Primary: Try reading from AWS S3
+        if (s3StorageService != null) {
+            byte[] s3Bytes = s3StorageService.downloadFile(s3BucketPhotos, cleanPath);
+            if (s3Bytes != null && s3Bytes.length > 0) {
+                return s3Bytes;
+            }
+        }
         if (supabaseUrl != null && !supabaseUrl.isBlank()) {
             List<String> candidateKeys = getCandidateAuthKeys();
             String downloadEndpoint = supabaseUrl + "/storage/v1/object/authenticated/" + storageBucket + "/" + cleanPath;

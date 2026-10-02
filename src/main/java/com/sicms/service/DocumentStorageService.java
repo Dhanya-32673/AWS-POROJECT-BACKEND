@@ -33,6 +33,12 @@ public class DocumentStorageService {
     @Value("${SUPABASE_STORAGE_BUCKET_DOCUMENTS:${supabase.storage.bucket.documents:student-documents}}")
     private String bucketName;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private S3StorageService s3StorageService;
+
+    @Value("${AWS_S3_BUCKET_DOCUMENTS:${aws.s3.bucket.documents:${AWS_S3_BUCKET:${aws.s3.bucket.name:sicms-storage}}}}")
+    private String s3BucketDocuments;
+
     private static final String UPLOAD_ROOT = "uploads/student-certificates";
 
     private static final List<String> ALLOWED_MIME_TYPES = Arrays.asList(
@@ -142,13 +148,24 @@ public class DocumentStorageService {
             throw new RuntimeException("Failed to read uploaded file bytes: " + e.getMessage(), e);
         }
 
-        // 1. Try uploading to Supabase Storage REST API
-        boolean supabaseUploaded = uploadToSupabase(storagePath, fileBytes, file.getContentType());
-        if (!supabaseUploaded) {
-            System.out.println(">>> SUPABASE STORAGE NOTICE: Primary Supabase API upload skipped or unavailable. Preserving local storage backup for: " + storagePath);
+        // 1. Primary: Upload to AWS S3
+        boolean s3Uploaded = false;
+        if (s3StorageService != null) {
+            s3Uploaded = s3StorageService.uploadFile(s3BucketDocuments, storagePath, fileBytes, file.getContentType());
+            if (s3Uploaded) {
+                log.info(">>> [AWS S3] Document uploaded to bucket [" + s3BucketDocuments + "]: " + storagePath);
+            }
         }
 
-        // 2. Save local backup copy for dev/fallback execution
+        // 2. Secondary/Fallback: Upload to Supabase Storage REST API
+        if (!s3Uploaded) {
+            boolean supabaseUploaded = uploadToSupabase(storagePath, fileBytes, file.getContentType());
+            if (!supabaseUploaded) {
+                System.out.println(">>> STORAGE NOTICE: Primary cloud uploads unavailable. Preserving local storage backup for: " + storagePath);
+            }
+        }
+
+        // 3. Save local backup copy for dev/fallback execution
         try {
             Path targetFile = Paths.get(UPLOAD_ROOT, storagePath);
             Files.createDirectories(targetFile.getParent());
@@ -197,12 +214,17 @@ public class DocumentStorageService {
     }
 
     /**
-     * Deletes a stored file from Supabase Storage and the local disk backup safely.
+     * Deletes a stored file from AWS S3, Supabase Storage, and the local disk backup safely.
      */
     public boolean deleteFile(String storagePath) {
         if (storagePath == null || storagePath.isBlank()) return false;
 
-        // 1. Delete from Supabase Storage REST API
+        // 1. Delete from AWS S3
+        if (s3StorageService != null) {
+            s3StorageService.deleteFile(s3BucketDocuments, storagePath);
+        }
+
+        // 2. Delete from Supabase Storage REST API
         if (supabaseUrl != null && !supabaseUrl.isBlank()) {
             String authKey = (secretKey != null && !secretKey.isBlank()) ? secretKey : publishableKey;
             if (authKey != null && !authKey.isBlank()) {
@@ -222,7 +244,7 @@ public class DocumentStorageService {
             }
         }
 
-        // 2. Delete local backup file
+        // 3. Delete local backup file
         try {
             Path targetFile = Paths.get(UPLOAD_ROOT, storagePath);
             Files.deleteIfExists(targetFile);
@@ -233,33 +255,50 @@ public class DocumentStorageService {
     }
 
     /**
-     * Checks if file exists in Supabase Storage or local disk.
+     * Checks if file exists in AWS S3, Supabase Storage, or local disk.
      */
     public boolean fileExists(String storagePath) {
         if (storagePath == null || storagePath.isBlank()) return false;
 
+        // 1. Check AWS S3
+        if (s3StorageService != null && s3StorageService.doesFileExist(s3BucketDocuments, storagePath)) {
+            return true;
+        }
+
+        // 2. Check local disk
         Path filePath = Paths.get(UPLOAD_ROOT, storagePath);
         if (Files.exists(filePath) && Files.isRegularFile(filePath)) {
             return true;
         }
 
+        // 3. Check Supabase
         byte[] supabaseBytes = downloadFromSupabase(storagePath);
         return supabaseBytes != null && supabaseBytes.length > 0;
     }
 
     /**
-     * Reads stored file bytes from Supabase Storage (or local disk fallback).
+     * Reads stored file bytes from AWS S3, Supabase Storage, or local disk fallback.
      */
     public byte[] readFile(String storagePath) {
         if (storagePath == null || storagePath.isBlank()) {
             throw new RuntimeException("Storage path is empty.");
         }
 
+        // 1. Primary: Try reading from AWS S3
+        if (s3StorageService != null) {
+            byte[] s3Bytes = s3StorageService.downloadFile(s3BucketDocuments, storagePath);
+            if (s3Bytes != null && s3Bytes.length > 0) {
+                return s3Bytes;
+            }
+        }
+
+        // 2. Secondary: Try reading from Supabase
         byte[] supabaseBytes = downloadFromSupabase(storagePath);
         if (supabaseBytes != null && supabaseBytes.length > 0) {
             return supabaseBytes;
         }
 
+        // 3. Fallback to local disk
         try {
             Path filePath = Paths.get(UPLOAD_ROOT, storagePath);
             if (Files.exists(filePath)) {

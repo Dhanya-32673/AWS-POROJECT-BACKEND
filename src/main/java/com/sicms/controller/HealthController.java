@@ -29,6 +29,9 @@ public class HealthController {
         return ResponseEntity.ok(response);
     }
 
+    @Autowired(required = false)
+    private com.sicms.service.S3StorageService s3StorageService;
+
     @GetMapping("/api/health/mail")
     public ResponseEntity<Map<String, Object>> mailHealthCheck() {
         Map<String, Object> response = new LinkedHashMap<>();
@@ -46,4 +49,28 @@ public class HealthController {
         response.put("status", "UP");
         return ResponseEntity.ok(response);
     }
+
+    @GetMapping("/api/health/s3")
+    public ResponseEntity<Map<String, Object>> s3HealthCheck() {
+        Map<String, Object> response = new LinkedHashMap<>();
+        if (s3StorageService == null) {
+            response.put("status", "DISABLED");
+            response.put("message", "S3 Storage Service is not initialized.");
+            return ResponseEntity.ok(response);
+        }
+        response.put("status", "UP");
+        response.put("bucket", s3StorageService.getDefaultBucketName());
+        response.put("provider", "AWS S3 Blob Storage");
+        return ResponseEntity.ok(response);
+    }
+
+    @RequestMapping(value = "/api/health/s3/test-upload", method = {RequestMethod.GET, RequestMethod.POST})
+    public ResponseEntity<Map<String, Object>> s3TestUpload() {
+        if (s3StorageService == null) {
+            return ResponseEntity.status(503).body(Map.of("status", "ERROR", "message", "S3StorageService unavailable"));
+        }
+        Map<String, Object> result = s3StorageService.testUploadVerificationFile();
+        return ResponseEntity.ok(result);
+    }
 }
+
