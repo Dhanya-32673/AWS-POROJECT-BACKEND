@@ -5,6 +5,7 @@ target/
 *.war
 *.ear
 *.rar
+*.zip
 
 # Environment & Credentials
 .env
