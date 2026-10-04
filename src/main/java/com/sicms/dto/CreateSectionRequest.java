@@ -15,6 +15,7 @@ public class CreateSectionRequest {
     private Integer capacity = 60;
     private String description;
     private boolean active = true;
+    private Long assignedFacultyId;
 
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
@@ -36,4 +37,7 @@ public class CreateSectionRequest {
 
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
+
+    public Long getAssignedFacultyId() { return assignedFacultyId; }
+    public void setAssignedFacultyId(Long assignedFacultyId) { this.assignedFacultyId = assignedFacultyId; }
 }

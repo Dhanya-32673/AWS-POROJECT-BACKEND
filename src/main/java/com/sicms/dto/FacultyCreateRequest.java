@@ -7,6 +7,7 @@ import java.time.LocalDate;
 
 public class FacultyCreateRequest {
 
+    private String facultyId;
     private String employeeId;
 
     @NotBlank(message = "First name is required")
@@ -57,6 +58,9 @@ public class FacultyCreateRequest {
     private String password;
 
     // Getters and Setters
+    public String getFacultyId() { return facultyId; }
+    public void setFacultyId(String facultyId) { this.facultyId = facultyId; }
+
     public String getEmployeeId() { return employeeId; }
     public void setEmployeeId(String employeeId) { this.employeeId = employeeId; }
 

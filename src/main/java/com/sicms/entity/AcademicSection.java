@@ -14,7 +14,7 @@ public class AcademicSection {
     private Long id;
 
     @NotBlank
-    @Column(name = "name", nullable = false, length = 10)
+    @Column(name = "name", nullable = false, length = 50)
     private String name;
 
     @NotBlank

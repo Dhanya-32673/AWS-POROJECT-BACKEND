@@ -36,6 +36,7 @@ public class FacultyResponse {
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
     private List<FacultyAssignmentResponse> assignments;
+    private long assignedStudentCount;
 
     // Getters and Setters
     public Long getId() { return id; }
@@ -127,4 +128,7 @@ public class FacultyResponse {
 
     public List<FacultyAssignmentResponse> getAssignments() { return assignments; }
     public void setAssignments(List<FacultyAssignmentResponse> assignments) { this.assignments = assignments; }
+
+    public long getAssignedStudentCount() { return assignedStudentCount; }
+    public void setAssignedStudentCount(long assignedStudentCount) { this.assignedStudentCount = assignedStudentCount; }
 }

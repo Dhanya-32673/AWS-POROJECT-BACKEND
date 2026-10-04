@@ -94,12 +94,6 @@ public class DataInitializer implements CommandLineRunner {
             seedGroup("HEC", "HEC", "History, Economics, Civics");
 
             seedSection("A", "MPC", "1st Year", "2026-2027", 60);
-            seedSection("B", "MPC", "1st Year", "2026-2027", 60);
-            seedSection("A", "MPC", "2nd Year", "2026-2027", 60);
-            seedSection("A", "BiPC", "1st Year", "2026-2027", 60);
-            seedSection("B", "MEC", "1st Year", "2026-2027", 60);
-            seedSection("A", "CEC", "2nd Year", "2026-2027", 60);
-            seedSection("A", "HEC", "1st Year", "2026-2027", 60);
             System.out.println("Academic master data initialized");
         } catch (Exception e) {
             System.err.println("Academic master data warning: " + e.getMessage());
@@ -230,6 +224,7 @@ public class DataInitializer implements CommandLineRunner {
         }
     }
 
+
     private void seedGroup(String code, String name, String desc) {
         java.util.Optional<AcademicGroup> opt = groupRepository.findByCode(code);
         if (opt.isEmpty()) {
@@ -245,6 +240,13 @@ public class DataInitializer implements CommandLineRunner {
             ag.setDescription(desc);
             ag.setActive(true);
             groupRepository.save(ag);
+  
+
+
+
+
+
+            
         }
     }
 

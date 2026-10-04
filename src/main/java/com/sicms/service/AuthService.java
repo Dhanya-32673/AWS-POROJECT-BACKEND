@@ -30,6 +30,7 @@ public class AuthService {
     private final JwtService jwtService;
     private final RefreshTokenService refreshTokenService;
     private final OtpService otpService;
+    private final com.sicms.repository.FacultyRepository facultyRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final UserService userService;
 
@@ -37,6 +38,7 @@ public class AuthService {
             UserRepository userRepository,
             com.sicms.repository.RoleRepository roleRepository,
             com.sicms.repository.StudentRepository studentRepository,
+            com.sicms.repository.FacultyRepository facultyRepository,
             PasswordEncoder passwordEncoder,
             JwtService jwtService,
             RefreshTokenService refreshTokenService,
@@ -47,6 +49,7 @@ public class AuthService {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.studentRepository = studentRepository;
+        this.facultyRepository = facultyRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.refreshTokenService = refreshTokenService;
@@ -179,7 +182,40 @@ public class AuthService {
 
     @Transactional
     public LoginVerifyResponse facultyLogin(LoginRequest request) {
-        User user = validateEmailPasswordLogin(request);
+        if (request.getEmail() == null || request.getPassword() == null) {
+            throw new InvalidCredentialsException("Email/Faculty ID and password are required");
+        }
+
+        String identifier = request.getEmail().trim();
+        java.util.Optional<User> userOpt = userRepository.findByEmailIgnoreCase(identifier.toLowerCase());
+
+        // If not found directly by email, check if identifier is a 4-digit facultyId or employeeId
+        if (userOpt.isEmpty()) {
+            java.util.Optional<com.sicms.entity.Faculty> facultyOpt = facultyRepository.findByFacultyId(identifier);
+            if (facultyOpt.isEmpty()) {
+                facultyOpt = facultyRepository.findByEmployeeIdIgnoreCase(identifier);
+            }
+            if (facultyOpt.isPresent() && facultyOpt.get().getUser() != null) {
+                userOpt = java.util.Optional.of(facultyOpt.get().getUser());
+            }
+        }
+
+        User user = userOpt.orElseThrow(() -> new InvalidCredentialsException("Invalid credentials or faculty account not found"));
+
+        if (!Boolean.TRUE.equals(user.getAccountEnabled())) {
+            throw new AccountDisabledException("Account is disabled");
+        }
+
+        boolean matches = passwordEncoder.matches(request.getPassword(), user.getPasswordHash());
+        if (!matches) {
+            throw new InvalidCredentialsException("Invalid credentials");
+        }
+
+        String roleName = user.getRole() != null ? user.getRole().getRoleName().toUpperCase() : "";
+        if (!roleName.contains("FACULTY") && !roleName.contains("ADMIN")) {
+            throw new AccessDeniedException("Access denied: User is not authorized as Faculty");
+        }
+
         return issueTokensForUser(user);
     }
 

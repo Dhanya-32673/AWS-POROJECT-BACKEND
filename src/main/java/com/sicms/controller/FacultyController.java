@@ -67,6 +67,27 @@ public class FacultyController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    @GetMapping("/stats")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<com.sicms.dto.FacultyStatsResponse> getFacultyStats() {
+        return ResponseEntity.ok(facultyService.getFacultyStats());
+    }
+
+    @GetMapping("/export/excel")
+    @PreAuthorize("hasRole('ADMIN')")
+    public void exportFacultyExcel(
+            @RequestParam(required = false) String query,
+            @RequestParam(required = false) String group,
+            @RequestParam(required = false) String status,
+            jakarta.servlet.http.HttpServletResponse response
+    ) throws java.io.IOException {
+        response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        String filename = "Faculty_Directory_" + java.time.LocalDate.now() + ".xlsx";
+        response.setHeader("Content-Disposition", "attachment; filename=\"" + filename + "\"");
+        facultyService.exportFacultyToExcel(query, group, status, response.getOutputStream());
+        response.flushBuffer();
+    }
+
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'FACULTY')")
     public ResponseEntity<FacultyResponse> getFacultyById(@PathVariable String id) {

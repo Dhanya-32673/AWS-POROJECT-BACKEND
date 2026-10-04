@@ -219,6 +219,35 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
            "GROUP BY LOWER(COALESCE(s.branchGroup, '')), LOWER(COALESCE(s.intermediateYear, '')), LOWER(s.section)")
     List<Object[]> countStudentsGroupedBySection();
 
+    @Query("SELECT COUNT(s) FROM Student s WHERE s.status = com.sicms.entity.StudentStatus.ACTIVE AND s.section IS NOT NULL AND LOWER(TRIM(s.section)) NOT IN ('', 'unassigned', 'none', 'na', 'not assigned')")
+    long countAssignedStudents();
+
+    @Query("SELECT COUNT(s) FROM Student s WHERE s.status = com.sicms.entity.StudentStatus.ACTIVE AND (s.section IS NULL OR LOWER(TRIM(s.section)) IN ('', 'unassigned', 'none', 'na', 'not assigned'))")
+    long countUnassignedStudents();
+
+    @Query("SELECT s FROM Student s WHERE s.status = com.sicms.entity.StudentStatus.ACTIVE AND " +
+           "(NOT (LOWER(s.section) = LOWER(:sectionName) OR " +
+           "      LOWER(s.section) = LOWER(CONCAT('Section ', :sectionName)) OR " +
+           "      LOWER(:sectionName) = LOWER(CONCAT('Section ', s.section)))) AND " +
+           "(:branchGroup IS NULL OR :branchGroup = '' OR LOWER(s.branchGroup) = LOWER(:branchGroup)) AND " +
+           "(:intermediateYear IS NULL OR :intermediateYear = '' OR LOWER(s.intermediateYear) = LOWER(:intermediateYear)) AND " +
+           "(:academicYear IS NULL OR :academicYear = '' OR s.academicYear = :academicYear) AND " +
+           "(:unassignedOnly IS NULL OR :unassignedOnly = false OR s.section IS NULL OR LOWER(TRIM(s.section)) IN ('', 'unassigned', 'none', 'na', 'not assigned')) AND " +
+           "(:search IS NULL OR :search = '' OR (" +
+           "   LOWER(s.studentId) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+           "   LOWER(s.admissionNumber) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+           "   LOWER(s.fullName) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+           "   LOWER(s.emailAddress1) LIKE LOWER(CONCAT('%', :search, '%'))" +
+           ")) ORDER BY s.fullName ASC")
+    List<Student> findAvailableStudentsForSection(
+            @Param("sectionName") String sectionName,
+            @Param("branchGroup") String branchGroup,
+            @Param("intermediateYear") String intermediateYear,
+            @Param("academicYear") String academicYear,
+            @Param("unassignedOnly") Boolean unassignedOnly,
+            @Param("search") String search
+    );
+
     @Query("SELECT DISTINCT s FROM Student s " +
            "LEFT JOIN FETCH s.createdBy u " +
            "ORDER BY s.id ASC")

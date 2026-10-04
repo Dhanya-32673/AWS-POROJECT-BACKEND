@@ -119,7 +119,7 @@ public class Student {
     private Long campusId;
 
     // Technical Fields
-    @Column(nullable = false, length = 10)
+    @Column(nullable = false, length = 50)
     private String section = "Unassigned";
 
     @Enumerated(EnumType.STRING)

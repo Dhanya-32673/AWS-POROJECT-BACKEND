@@ -21,4 +21,10 @@ public interface FacultyAssignmentRepository extends JpaRepository<FacultyAssign
     List<FacultyAssignment> findActiveAssignments(@Param("group") String group,
                                                    @Param("year") String year,
                                                    @Param("section") String section);
+
+    @Query("SELECT COUNT(DISTINCT fa.faculty.id) FROM FacultyAssignment fa WHERE fa.active = true")
+    long countDistinctFacultyWithActiveAssignments();
+
+    @Query("SELECT COUNT(fa) FROM FacultyAssignment fa WHERE fa.faculty.id = :facultyId AND fa.active = true")
+    long countActiveByFacultyId(@Param("facultyId") Long facultyId);
 }

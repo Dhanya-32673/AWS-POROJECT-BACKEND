@@ -63,4 +63,6 @@ public interface FacultyRepository extends JpaRepository<Faculty, Long> {
                                Pageable pageable);
 
     long countByStatus(String status);
+
+    long countByStatusIgnoreCase(String status);
 }

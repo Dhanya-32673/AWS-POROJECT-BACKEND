@@ -26,7 +26,7 @@ public class FacultyAssignment {
     private String intermediateYear;
 
     @NotBlank
-    @Column(name = "section", nullable = false, length = 10)
+    @Column(name = "section", nullable = false, length = 50)
     private String section;
 
     @NotBlank

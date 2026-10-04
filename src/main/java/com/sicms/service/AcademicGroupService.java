@@ -2,6 +2,7 @@ package com.sicms.service;
 
 import com.sicms.dto.CreateSectionRequest;
 import com.sicms.dto.SectionResponse;
+import com.sicms.dto.SectionStatsResponse;
 import com.sicms.dto.StudentResponse;
 import com.sicms.entity.AcademicGroup;
 import com.sicms.entity.AcademicSection;
@@ -12,11 +13,15 @@ import com.sicms.repository.AcademicGroupRepository;
 import com.sicms.repository.AcademicSectionRepository;
 import com.sicms.repository.FacultyAssignmentRepository;
 import com.sicms.repository.StudentRepository;
+import com.sicms.util.SectionExcelExporter;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
+import java.io.OutputStream;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -99,19 +104,42 @@ public class AcademicGroupService {
                 .collect(Collectors.toList());
     }
 
-    @CacheEvict(value = {"sections", "sectionsResponses"}, allEntries = true)
+    @Transactional(readOnly = true)
+    public SectionResponse getSectionById(Long id) {
+        AcademicSection section = sectionRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Section with ID " + id + " not found."));
+        return mapToSectionResponse(section);
+    }
+
+    @Transactional(readOnly = true)
+    public SectionStatsResponse getSectionStats() {
+        long totalSections = sectionRepository.count();
+        long activeSections = sectionRepository.countByActiveTrue();
+        long totalStudentsAssigned = studentRepository.countAssignedStudents();
+        long unassignedStudents = studentRepository.countUnassignedStudents();
+        long assignedFaculty = assignmentRepository.countDistinctFacultyWithActiveAssignments();
+
+        return new SectionStatsResponse(totalSections, totalStudentsAssigned, unassignedStudents, activeSections, assignedFaculty);
+    }
+
+    @CacheEvict(value = {"sections", "sectionsResponses", "adminDashboard"}, allEntries = true)
     @Transactional
     public SectionResponse createSection(CreateSectionRequest request) {
-        if (sectionRepository.existsByNameIgnoreCaseAndAcademicYear(request.getName(), request.getAcademicYear())) {
-            throw new IllegalArgumentException("Section '" + request.getName() + "' for Academic Year '" + request.getAcademicYear() + "' already exists.");
+        String group = request.getBranchGroup() != null ? request.getBranchGroup().trim() : "MPC";
+        String year = request.getIntermediateYear() != null ? request.getIntermediateYear().trim() : "1st Year";
+        String academicYear = request.getAcademicYear() != null ? request.getAcademicYear().trim() : "2026-2027";
+        String name = request.getName().trim();
+
+        if (sectionRepository.existsByNameIgnoreCaseAndBranchGroupAndIntermediateYearAndAcademicYear(name, group, year, academicYear)) {
+            throw new IllegalArgumentException("Section '" + name + "' already exists for " + group + " " + year + " (" + academicYear + ").");
         }
 
         AcademicSection section = new AcademicSection();
-        section.setName(request.getName().trim());
-        section.setAcademicYear(request.getAcademicYear().trim());
-        section.setBranchGroup(request.getBranchGroup() != null ? request.getBranchGroup() : "MPC");
-        section.setIntermediateYear(request.getIntermediateYear() != null ? request.getIntermediateYear() : "1st Year");
-        section.setCapacity(request.getCapacity() != null ? request.getCapacity() : 60);
+        section.setName(name);
+        section.setAcademicYear(academicYear);
+        section.setBranchGroup(group);
+        section.setIntermediateYear(year);
+        section.setCapacity(request.getCapacity() != null && request.getCapacity() > 0 ? request.getCapacity() : 60);
         section.setDescription(request.getDescription());
         section.setActive(request.isActive());
 
@@ -119,25 +147,65 @@ public class AcademicGroupService {
         return mapToSectionResponse(saved);
     }
 
-    @CacheEvict(value = {"sections", "sectionsResponses"}, allEntries = true)
+    @CacheEvict(value = {"sections", "sectionsResponses", "adminDashboard"}, allEntries = true)
     @Transactional
     public SectionResponse updateSection(Long id, CreateSectionRequest request) {
         AcademicSection section = sectionRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Section with ID " + id + " not found."));
 
-        section.setName(request.getName().trim());
-        section.setAcademicYear(request.getAcademicYear().trim());
-        if (request.getBranchGroup() != null) section.setBranchGroup(request.getBranchGroup());
-        if (request.getIntermediateYear() != null) section.setIntermediateYear(request.getIntermediateYear());
-        if (request.getCapacity() != null) section.setCapacity(request.getCapacity());
+        String group = request.getBranchGroup() != null ? request.getBranchGroup().trim() : section.getBranchGroup();
+        String year = request.getIntermediateYear() != null ? request.getIntermediateYear().trim() : section.getIntermediateYear();
+        String academicYear = request.getAcademicYear() != null ? request.getAcademicYear().trim() : section.getAcademicYear();
+        String newName = request.getName().trim();
+        String oldName = section.getName();
+
+        boolean duplicate = sectionRepository.existsByNameIgnoreCaseAndBranchGroupAndIntermediateYearAndAcademicYearAndIdNot(
+                newName, group, year, academicYear, id
+        );
+        if (duplicate) {
+            throw new IllegalArgumentException("Section '" + newName + "' already exists for " + group + " " + year + " (" + academicYear + ").");
+        }
+
+        long currentAssigned = studentRepository.countStudentsBySectionDetails(section.getBranchGroup(), section.getIntermediateYear(), section.getName());
+        if (request.getCapacity() != null && request.getCapacity() < currentAssigned) {
+            throw new IllegalArgumentException("Cannot reduce capacity to " + request.getCapacity() + ". The section currently has " + currentAssigned + " assigned student(s).");
+        }
+
+        section.setName(newName);
+        section.setAcademicYear(academicYear);
+        section.setBranchGroup(group);
+        section.setIntermediateYear(year);
+        if (request.getCapacity() != null && request.getCapacity() > 0) {
+            section.setCapacity(request.getCapacity());
+        }
         section.setDescription(request.getDescription());
         section.setActive(request.isActive());
 
         AcademicSection saved = sectionRepository.save(section);
+
+        // If section name was updated, update existing assigned students as well
+        if (!oldName.equalsIgnoreCase(newName)) {
+            List<Student> currentStudents = studentRepository.findStudentsBySectionDetails(section.getBranchGroup(), section.getIntermediateYear(), oldName);
+            for (Student s : currentStudents) {
+                s.setSection(newName);
+                studentRepository.save(s);
+            }
+        }
+
         return mapToSectionResponse(saved);
     }
 
-    @CacheEvict(value = {"sections", "sectionsResponses"}, allEntries = true)
+    @CacheEvict(value = {"sections", "sectionsResponses", "adminDashboard"}, allEntries = true)
+    @Transactional
+    public SectionResponse toggleSectionStatus(Long id, boolean active) {
+        AcademicSection section = sectionRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Section with ID " + id + " not found."));
+        section.setActive(active);
+        AcademicSection saved = sectionRepository.save(section);
+        return mapToSectionResponse(saved);
+    }
+
+    @CacheEvict(value = {"sections", "sectionsResponses", "adminDashboard"}, allEntries = true)
     @Transactional
     public void deleteSection(Long id) {
         AcademicSection section = sectionRepository.findById(id)
@@ -145,7 +213,7 @@ public class AcademicGroupService {
 
         long count = studentRepository.countStudentsBySectionDetails(section.getBranchGroup(), section.getIntermediateYear(), section.getName());
         if (count > 0) {
-            throw new IllegalArgumentException("This section contains students. Move or remove all students before deleting the section.");
+            throw new IllegalArgumentException("Cannot delete section '" + section.getName() + "' because it has " + count + " assigned student(s). Please move or unassign students before deleting.");
         }
 
         sectionRepository.delete(section);
@@ -160,6 +228,26 @@ public class AcademicGroupService {
         return students.stream().map(StudentResponse::new).collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
+    public List<StudentResponse> getAvailableStudents(Long sectionId, String search, String branchGroup, String intermediateYear, String academicYear, Boolean unassignedOnly) {
+        AcademicSection section = sectionRepository.findById(sectionId)
+                .orElseThrow(() -> new IllegalArgumentException("Section with ID " + sectionId + " not found."));
+
+        String effectiveGroup = (branchGroup != null && !branchGroup.isBlank() && !branchGroup.equalsIgnoreCase("ALL"))
+                ? branchGroup.trim() : null;
+        String effectiveYear = (intermediateYear != null && !intermediateYear.isBlank() && !intermediateYear.equalsIgnoreCase("ALL"))
+                ? intermediateYear.trim() : null;
+        String effectiveAcademicYear = (academicYear != null && !academicYear.isBlank() && !academicYear.equalsIgnoreCase("ALL"))
+                ? academicYear.trim() : null;
+        String effectiveSearch = (search != null && !search.isBlank()) ? search.trim() : null;
+
+        List<Student> students = studentRepository.findAvailableStudentsForSection(
+                section.getName(), effectiveGroup, effectiveYear, effectiveAcademicYear, unassignedOnly, effectiveSearch
+        );
+
+        return students.stream().map(StudentResponse::new).collect(Collectors.toList());
+    }
+
     @CacheEvict(value = {"sections", "sectionsResponses", "adminDashboard"}, allEntries = true)
     @Transactional
     public void assignStudentsToSection(Long sectionId, List<String> studentIds) {
@@ -168,13 +256,52 @@ public class AcademicGroupService {
 
         if (studentIds == null || studentIds.isEmpty()) return;
 
-        for (String studentId : studentIds) {
-            studentRepository.findByStudentId(studentId).ifPresent(student -> {
-                student.setSection(section.getName());
-                if (section.getBranchGroup() != null) student.setBranchGroup(section.getBranchGroup());
-                if (section.getIntermediateYear() != null) student.setIntermediateYear(section.getIntermediateYear());
-                studentRepository.save(student);
-            });
+        long currentAssigned = studentRepository.countStudentsBySectionDetails(
+                section.getBranchGroup(), section.getIntermediateYear(), section.getName()
+        );
+        int capacity = section.getCapacity() != null ? section.getCapacity() : 60;
+
+        List<String> distinctIds = studentIds.stream().distinct().collect(Collectors.toList());
+        List<Student> toAssign = new ArrayList<>();
+
+        for (String studentId : distinctIds) {
+            Student st = studentRepository.findByStudentId(studentId).orElse(null);
+            if (st == null) {
+                try {
+                    st = studentRepository.findById(Long.parseLong(studentId)).orElse(null);
+                } catch (NumberFormatException ignored) {}
+            }
+            if (st == null) {
+                throw new StudentNotFoundException("Student with ID '" + studentId + "' not found.");
+            }
+
+            String currentSec = st.getSection() != null ? st.getSection().trim() : "";
+            boolean alreadyIn = currentSec.equalsIgnoreCase(section.getName())
+                    || currentSec.equalsIgnoreCase("Section " + section.getName())
+                    || section.getName().equalsIgnoreCase("Section " + currentSec);
+            if (alreadyIn) {
+                throw new IllegalArgumentException("Student '" + (st.getFullName() != null ? st.getFullName() : studentId)
+                        + "' is already assigned to section " + section.getName() + ".");
+            }
+            toAssign.add(st);
+        }
+
+        if (currentAssigned + toAssign.size() > capacity) {
+            long remaining = Math.max(0, capacity - currentAssigned);
+            throw new IllegalArgumentException("Section capacity exceeded. Maximum capacity is " + capacity
+                    + ", currently assigned: " + currentAssigned + ", remaining spots: " + remaining
+                    + ". Attempted to assign: " + toAssign.size() + " student(s).");
+        }
+
+        for (Student student : toAssign) {
+            student.setSection(section.getName());
+            if (section.getBranchGroup() != null && !section.getBranchGroup().isBlank()) {
+                student.setBranchGroup(section.getBranchGroup());
+            }
+            if (section.getIntermediateYear() != null && !section.getIntermediateYear().isBlank()) {
+                student.setIntermediateYear(section.getIntermediateYear());
+            }
+            studentRepository.save(student);
         }
     }
 
@@ -207,6 +334,18 @@ public class AcademicGroupService {
         for (String studentId : studentIds) {
             removeStudentFromSection(sectionId, studentId);
         }
+    }
+
+    public void exportSectionsToExcel(OutputStream os) throws IOException {
+        List<SectionResponse> sections = getSectionResponses();
+        SectionExcelExporter.exportSections(sections, os);
+    }
+
+    public void exportSectionStudentsToExcel(Long sectionId, OutputStream os) throws IOException {
+        AcademicSection section = sectionRepository.findById(sectionId)
+                .orElseThrow(() -> new IllegalArgumentException("Section with ID " + sectionId + " not found."));
+        List<StudentResponse> members = getSectionMembers(sectionId);
+        SectionExcelExporter.exportSectionMembers(section.getName(), members, os);
     }
 
     private SectionResponse mapToSectionResponse(AcademicSection section) {

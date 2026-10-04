@@ -175,8 +175,20 @@ public class FacultyService {
         user.setAccountEnabled(true);
         user = userRepository.save(user);
 
-        // Generate unique Faculty ID (e.g. FAC10001)
-        String facultyId = "FAC" + System.currentTimeMillis() % 100000;
+        // Generate or assign unique 4-digit numeric Faculty ID (e.g. 1001, 2555)
+        String facultyId;
+        if (request.getFacultyId() != null && !request.getFacultyId().isBlank()) {
+            String candidate = request.getFacultyId().trim();
+            if (!candidate.matches("^\\d{4}$")) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Faculty ID must be a 4-digit number (e.g. 1001)");
+            }
+            if (facultyRepository.existsByFacultyId(candidate)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Faculty ID " + candidate + " is already in use");
+            }
+            facultyId = candidate;
+        } else {
+            facultyId = generateNextFacultyId();
+        }
 
         Faculty faculty = new Faculty();
         faculty.setFacultyId(facultyId);
@@ -223,7 +235,19 @@ public class FacultyService {
         }
         String trimmed = identifier.trim();
 
-        // 1. Try numeric database primary key ID if the identifier is all digits
+        // 1. Try by exact facultyId first (e.g. 4-digit code like "2555" or "1001")
+        Optional<Faculty> byFacultyId = facultyRepository.findByFacultyId(trimmed);
+        if (byFacultyId.isPresent()) {
+            return byFacultyId.get();
+        }
+
+        // 2. Try by case-insensitive facultyId
+        Optional<Faculty> byFacultyIdIgnoreCase = facultyRepository.findByFacultyIdIgnoreCase(trimmed);
+        if (byFacultyIdIgnoreCase.isPresent()) {
+            return byFacultyIdIgnoreCase.get();
+        }
+
+        // 3. Try numeric database primary key ID if the identifier is all digits
         if (trimmed.matches("^\\d+$")) {
             try {
                 Long numericId = Long.parseLong(trimmed);
@@ -232,18 +256,6 @@ public class FacultyService {
                     return byId.get();
                 }
             } catch (NumberFormatException ignored) {}
-        }
-
-        // 2. Try by exact facultyId (e.g. "FAC-1001" or "FAC-2026-001")
-        Optional<Faculty> byFacultyId = facultyRepository.findByFacultyId(trimmed);
-        if (byFacultyId.isPresent()) {
-            return byFacultyId.get();
-        }
-
-        // 3. Try by case-insensitive facultyId
-        Optional<Faculty> byFacultyIdIgnoreCase = facultyRepository.findByFacultyIdIgnoreCase(trimmed);
-        if (byFacultyIdIgnoreCase.isPresent()) {
-            return byFacultyIdIgnoreCase.get();
         }
 
         // 4. Try by employeeId (e.g. "EMP001")
@@ -286,6 +298,18 @@ public class FacultyService {
     public FacultyResponse updateFaculty(Long id, FacultyUpdateRequest request) {
         Faculty faculty = facultyRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Faculty not found with ID: " + id));
+
+        if (request.getFacultyId() != null && !request.getFacultyId().isBlank()) {
+            String newCode = request.getFacultyId().trim();
+            if (!newCode.matches("^\\d{4}$")) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Faculty ID must be a 4-digit number (e.g. 1001)");
+            }
+            Optional<Faculty> existing = facultyRepository.findByFacultyId(newCode);
+            if (existing.isPresent() && !existing.get().getId().equals(id)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Faculty ID " + newCode + " is already in use");
+            }
+            faculty.setFacultyId(newCode);
+        }
 
         if (request.getFirstName() != null) faculty.setFirstName(request.getFirstName().trim());
         if (request.getMiddleName() != null) faculty.setMiddleName(request.getMiddleName().trim());
@@ -426,6 +450,12 @@ public class FacultyService {
 
         Faculty faculty = optionalFaculty.get();
 
+        long activeAssignmentCount = assignmentRepository.countActiveByFacultyId(faculty.getId());
+        if (activeAssignmentCount > 0) {
+            throw new IllegalArgumentException("Cannot delete faculty member '" + faculty.getFullName()
+                    + "' because they have " + activeAssignmentCount + " active section assignment(s). Please unassign or reassign sections first.");
+        }
+
         // 1. Delete all assignments
         List<FacultyAssignment> assignments = assignmentRepository.findByFacultyId(faculty.getId());
         if (!assignments.isEmpty()) {
@@ -507,7 +537,33 @@ public class FacultyService {
                 .collect(Collectors.toList());
         res.setAssignments(assignments);
 
+        long studentCount = 0;
+        for (FacultyAssignmentResponse fa : assignments) {
+            if (fa.isActive()) {
+                studentCount += studentRepository.countStudentsBySectionDetails(
+                        fa.getBranchGroup(), fa.getIntermediateYear(), fa.getSection());
+            }
+        }
+        res.setAssignedStudentCount(studentCount);
+
         return res;
+    }
+
+    @Transactional(readOnly = true)
+    public com.sicms.dto.FacultyStatsResponse getFacultyStats() {
+        long totalFaculty = facultyRepository.count();
+        long activeFaculty = facultyRepository.countByStatusIgnoreCase("ACTIVE");
+        long assignedFaculty = assignmentRepository.countDistinctFacultyWithActiveAssignments();
+        long unassignedFaculty = Math.max(0, totalFaculty - assignedFaculty);
+
+        return new com.sicms.dto.FacultyStatsResponse(totalFaculty, activeFaculty, assignedFaculty, unassignedFaculty);
+    }
+
+    @Transactional(readOnly = true)
+    public void exportFacultyToExcel(String query, String group, String status, java.io.OutputStream outputStream) throws java.io.IOException {
+        org.springframework.data.domain.Pageable unpaged = org.springframework.data.domain.PageRequest.of(0, 10000, org.springframework.data.domain.Sort.by("fullName").ascending());
+        List<FacultyResponse> facultyList = searchFaculty(query, group, status, unpaged).getContent();
+        com.sicms.util.FacultyExcelExporter.exportFaculty(facultyList, outputStream);
     }
 
     private FacultyAssignmentResponse mapToAssignmentResponse(FacultyAssignment fa) {
@@ -530,5 +586,31 @@ public class FacultyService {
             return false;
         }
         return left.trim().toLowerCase(Locale.ROOT).equals(right.trim().toLowerCase(Locale.ROOT));
+    }
+
+    public synchronized String generateNextFacultyId() {
+        List<Faculty> all = facultyRepository.findAll();
+        int max = 1000;
+        for (Faculty f : all) {
+            if (f.getFacultyId() != null && f.getFacultyId().matches("^\\d{4}$")) {
+                try {
+                    int val = Integer.parseInt(f.getFacultyId());
+                    if (val >= 1000 && val <= 9999 && val > max) {
+                        max = val;
+                    }
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+        int next = max + 1;
+        if (next <= 9999 && !facultyRepository.existsByFacultyId(String.valueOf(next))) {
+            return String.valueOf(next);
+        }
+        for (int i = 1001; i <= 9999; i++) {
+            String candidate = String.valueOf(i);
+            if (!facultyRepository.existsByFacultyId(candidate)) {
+                return candidate;
+            }
+        }
+        return String.valueOf(1000 + (int)(Math.random() * 9000));
     }
 }

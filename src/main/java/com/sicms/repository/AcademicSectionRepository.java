@@ -15,5 +15,9 @@ public interface AcademicSectionRepository extends JpaRepository<AcademicSection
 
     boolean existsByNameIgnoreCaseAndBranchGroupAndIntermediateYearAndAcademicYear(String name, String branchGroup, String intermediateYear, String academicYear);
 
+    boolean existsByNameIgnoreCaseAndBranchGroupAndIntermediateYearAndAcademicYearAndIdNot(String name, String branchGroup, String intermediateYear, String academicYear, Long id);
+
+    long countByActiveTrue();
+
     java.util.Optional<AcademicSection> findByNameIgnoreCase(String name);
 }
